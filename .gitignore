@@ -1,0 +1,12 @@
+# Ignore data files (images, generated files)
+/data/
+
+# Virtual environments
+.venv/
+venv/
+
+# Logs (optional)
+logs/json_errors/
+
+# Secrets
+config/anthropic_config

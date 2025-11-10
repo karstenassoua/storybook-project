@@ -1,23 +1,25 @@
 import base64
 import json
 import os
+import time
+import re
 import configparser
 from anthropic import Anthropic
-from typing import Dict, Any
+from typing import Dict, Any, List
+from pathlib import Path
+
 
 def extract_text_from_image(image_path: str) -> Dict[str, Any]:
     """
-    Extract text from an image using Claude 3.5 Sonnet API.
+    Extract text from an image using Claude API.
 
-    Args:
-        image_path (str): Path to the image file.
-
-    Returns:
-        Dict[str, Any]: JSON response containing extracted text and metadata.
+    Returns a dict with key 'extracted_text' whose value is a string safe for
+    joining/printing (control characters escaped). On JSON-parse failures the
+    raw API response is saved to logs/json_errors for later inspection.
     """
     # Read API key from config file
     config = configparser.ConfigParser()
-    config_path = os.path.join(os.path.dirname(__file__), '..', '..', 'config', '.anthropic_config')
+    config_path = os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'anthropic_config')
     config.read(config_path)
     api_key = config['Anthropic']['api_key']
 
@@ -27,7 +29,7 @@ def extract_text_from_image(image_path: str) -> Dict[str, Any]:
         encoded_image = base64.b64encode(image_file.read()).decode('utf-8')
 
     response = anthropic.messages.create(
-        model="claude-3-haiku-20240307",
+        model="claude-3-5-haiku-20241022",
         max_tokens=1000,
         messages=[
             {
@@ -50,11 +52,143 @@ def extract_text_from_image(image_path: str) -> Dict[str, Any]:
         ]
     )
 
-    # Parse and return the JSON response
-    extracted_text = json.loads(response.content[0].text)
-    
-    return extracted_text
+    raw_text = response.content[0].text
 
-# Example usage:
-# result = extract_text_from_image("path/to/your/image.jpg")
-# print(result)
+    def _escape_and_normalize(value: Any) -> str:
+        """Convert arbitrary returned value to a single escaped string.
+
+        - Lists are joined with newlines.
+        - Dicts are JSON-dumped.
+        - Then unicode/control characters are escaped (so strings are safe).
+        """
+        if isinstance(value, list):
+            s = '\n'.join(map(str, value))
+        elif isinstance(value, dict):
+            s = json.dumps(value, ensure_ascii=False)
+        else:
+            s = str(value)
+
+        try:
+            escaped = s.encode('unicode_escape').decode('ascii')
+        except Exception:
+            escaped = ''.join(ch if ord(ch) >= 32 else '?' for ch in s)
+        return escaped
+
+    # Attempt to parse JSON and extract a meaningful textual value. If
+    # parsing fails, log the raw response and fall back to escaping the raw
+    # text. This avoids returning raw JSON blobs into the final combined text.
+    try:
+        parsed = json.loads(raw_text)
+        if isinstance(parsed, dict):
+            # Prefer the explicit extracted_text key if present
+            if 'extracted_text' in parsed:
+                return {"extracted_text": _escape_and_normalize(parsed['extracted_text'])}
+
+            # Otherwise, collect textual pieces from values
+            pieces: List[str] = []
+            for v in parsed.values():
+                if isinstance(v, (str, int, float)):
+                    pieces.append(str(v))
+                elif isinstance(v, list):
+                    pieces.extend(map(str, v))
+                elif isinstance(v, dict):
+                    pieces.append(json.dumps(v, ensure_ascii=False))
+
+            if pieces:
+                return {"extracted_text": _escape_and_normalize('\n'.join(pieces))}
+
+            # Fallback: stringify whole dict
+            return {"extracted_text": _escape_and_normalize(parsed)}
+
+        # If parsed is not a dict (list or string), normalize it
+        return {"extracted_text": _escape_and_normalize(parsed)}
+    except json.JSONDecodeError:
+        # Save raw response for debugging
+        try:
+            logs_dir = Path(__file__).resolve().parents[2] / 'logs' / 'json_errors'
+            logs_dir.mkdir(parents=True, exist_ok=True)
+            stem = Path(image_path).stem if image_path else 'unknown'
+            timestamp = int(time.time())
+            fname = logs_dir / f"json_error_{stem}_{timestamp}.txt"
+            with open(fname, 'w', encoding='utf-8') as fh:
+                fh.write(raw_text)
+            print(f"Saved raw API response to {fname}")
+        except Exception as write_e:
+            print(f"Failed to write raw API response: {write_e}")
+
+        # If there's an embedded JSON object in the response, try to extract it
+        m = re.search(r"\{.*\}", raw_text, flags=re.DOTALL)
+        if m:
+            try:
+                inner = json.loads(m.group(0))
+                if isinstance(inner, dict) and 'extracted_text' in inner:
+                    return {"extracted_text": _escape_and_normalize(inner['extracted_text'])}
+                pieces = []
+                for v in inner.values():
+                    if isinstance(v, (str, int, float)):
+                        pieces.append(str(v))
+                    elif isinstance(v, list):
+                        pieces.extend(map(str, v))
+                if pieces:
+                    return {"extracted_text": _escape_and_normalize('\n'.join(pieces))}
+            except Exception:
+                pass
+
+        return {"extracted_text": _escape_and_normalize(raw_text)}
+
+
+def extract_text_from_folder(folder_path: str) -> str:
+    """
+    Extract text from all images in a folder in order and combine them into one string.
+    """
+    image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
+    image_files = sorted([
+        f for f in os.listdir(folder_path)
+        if os.path.splitext(f)[1].lower() in image_extensions
+    ])
+
+    if not image_files:
+        print(f"No image files found in {folder_path}")
+        return ""
+
+    combined_text: List[str] = []
+
+    for i, filename in enumerate(image_files, 1):
+        image_path = os.path.join(folder_path, filename)
+        print(f"Processing {i}/{len(image_files)}: {filename}")
+        try:
+            result = extract_text_from_image(image_path)
+            extracted_text = result.get('extracted_text', '')
+
+            # Normalize types (lists -> joined string, others -> str)
+            if isinstance(extracted_text, list):
+                extracted_text = '\n'.join(map(str, extracted_text))
+            elif not isinstance(extracted_text, str):
+                extracted_text = str(extracted_text)
+
+            combined_text.append(extracted_text)
+        except Exception as e:
+            print(f"Error processing {filename}: {e}")
+            continue
+
+    return '\n\n'.join(combined_text)
+
+
+if __name__ == "__main__":
+    folder_path = "data/input_images/sample_images"
+    book_text = extract_text_from_folder(folder_path)
+
+    # Remove JSON-like snippets containing an extracted_text key so the final
+    # output is clean and human-readable.
+    cleaned = re.sub(r"\n?\s*\{[^}]*\"extracted_text\"[^}]*\}\n?", "\n", book_text, flags=re.DOTALL)
+
+    # Decode unicode escapes to make output readable (we escaped control chars earlier)
+    try:
+        decoded = cleaned.encode('utf-8').decode('unicode_escape')
+    except Exception:
+        decoded = cleaned
+
+    print("\n" + "="*50)
+    print("COMBINED BOOK TEXT:")
+    print("="*50)
+    print(decoded)

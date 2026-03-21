@@ -25,10 +25,30 @@ source .venv/bin/activate
 python agents/ocr/claude_ocr.py
 ```
 
+3. (Optional) Convert a PDF into page images using PyMuPDF. The output will be
+	written to `data/input_images/round_two_books/<book_title>/` where
+	`<book_title>` is lowercase with underscores. Each page uses a 3-digit suffix:
+	`<book_title>-001.jpg`, `<book_title>-002.jpg`, etc.
+
+```bash
+source .venv/bin/activate
+pip install pymupdf
+python agents/ocr/claude_ocr.py --pdf /path/to/who_said_coo.pdf --book-title "Who Said Coo?"
+```
+
+Example output path and file names:
+- `data/input_images/round_two_books/who_said_coo/`
+- `who_said_coo-001.jpg`
+- `who_said_coo-002.jpg`
+
 Logs and troubleshooting
 - If the model returns a non-JSON response or includes extra commentary, the full raw response for that page is written to `logs/json_errors/json_error_<image>_<timestamp>.txt` so you can inspect what happened.
 - The script also normalizes and escapes control characters so joining pages won't raise errors.
 
 Next steps:
 - Save the combined output to a text file
-- Add PDF → images conversion (PyMuPDF) to feed full PDFs into the same pipeline.
+- Run OCR on a converted folder:
+
+```bash
+python agents/ocr/claude_ocr.py --folder data/input_images/round_two_books/who_said_coo
+```

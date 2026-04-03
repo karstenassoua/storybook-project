@@ -95,12 +95,18 @@ def run_round_image_batch(
     images_root: Path,
     output_csv: Path,
     max_books: int,
+    dry_run: bool = False,
 ) -> None:
     # Import OCR helper lazily so this script can still run for text-only mode.
     storybook_root = Path(__file__).resolve().parents[1]
     if str(storybook_root) not in sys.path:
         sys.path.insert(0, str(storybook_root))
     from agents.ocr.claude_ocr import extract_text_from_folder
+
+    try:
+        import fitz  # type: ignore[import-not-found]
+    except ImportError:
+        fitz = None
 
     client = _get_client()
     folders = list(iter_image_folders(images_root))
@@ -113,29 +119,83 @@ def run_round_image_batch(
 
     for i, folder in enumerate(folders, 1):
         book_id = folder.name
-        print(f"[{i}/{total}] OCR + predict: {book_id}")
-        try:
-            book_text = extract_text_from_folder(str(folder))
-            pred_code, raw_output = predict_book_text(client, model_id, book_text)
+        print(f"[{i}/{total}] Processing: {book_id}")
+        book_text = None
+        extraction_method = "ocr"
+        source_path = str(folder)
+
+        # Try PDF extraction first if PyMuPDF is available
+        if fitz:
+            pdf_files = list(folder.glob("*.pdf"))
+            if pdf_files:
+                pdf_path = pdf_files[0]
+                try:
+                    doc = fitz.open(pdf_path)
+                    page_texts = [page.get_text("text") for page in doc]
+                    doc.close()
+                    candidate_text = "\n\n".join(page_texts).strip()
+                    if len(candidate_text) > 1000:  # Threshold for meaningful extractable text
+                        book_text = candidate_text
+                        extraction_method = "pdf"
+                        source_path = str(pdf_path)
+                except Exception:
+                    pass  # Fall through to OCR
+
+        # If not from PDF, do OCR
+        if book_text is None:
+            try:
+                book_text = extract_text_from_folder(str(folder))
+                extraction_method = "ocr"
+                source_path = str(folder)
+            except Exception as exc:
+                rows.append(
+                    {
+                        "book_id": book_id,
+                        "source_path": source_path,
+                        "extraction_method": "error",
+                        "pred_code": "ERR",
+                        "raw_model_output": f"ERROR: {exc}",
+                        "text_char_count": 0,
+                    }
+                )
+                continue
+
+        # Predict using the extracted text, unless this is a dry run.
+        if dry_run:
             rows.append(
                 {
                     "book_id": book_id,
-                    "source_folder": str(folder),
-                    "pred_code": pred_code,
-                    "raw_model_output": raw_output,
+                    "source_path": source_path,
+                    "extraction_method": extraction_method,
+                    "pred_code": "DRY",
+                    "raw_model_output": "dry-run",
                     "text_char_count": len(book_text),
                 }
             )
-        except Exception as exc:
-            rows.append(
-                {
-                    "book_id": book_id,
-                    "source_folder": str(folder),
-                    "pred_code": "ERR",
-                    "raw_model_output": f"ERROR: {exc}",
-                    "text_char_count": 0,
-                }
-            )
+        else:
+            try:
+                pred_code, raw_output = predict_book_text(client, model_id, book_text)
+                rows.append(
+                    {
+                        "book_id": book_id,
+                        "source_path": source_path,
+                        "extraction_method": extraction_method,
+                        "pred_code": pred_code,
+                        "raw_model_output": raw_output,
+                        "text_char_count": len(book_text),
+                    }
+                )
+            except Exception as exc:
+                rows.append(
+                    {
+                        "book_id": book_id,
+                        "source_path": source_path,
+                        "extraction_method": extraction_method,
+                        "pred_code": "ERR",
+                        "raw_model_output": f"ERROR: {exc}",
+                        "text_char_count": len(book_text) if book_text else 0,
+                    }
+                )
 
     output_csv.parent.mkdir(parents=True, exist_ok=True)
     with output_csv.open("w", newline="", encoding="utf-8") as fh:
@@ -143,7 +203,8 @@ def run_round_image_batch(
             fh,
             fieldnames=[
                 "book_id",
-                "source_folder",
+                "source_path",
+                "extraction_method",
                 "pred_code",
                 "raw_model_output",
                 "text_char_count",
@@ -160,6 +221,7 @@ def run_round_pdf_batch(
     pdf_root: Path,
     output_csv: Path,
     max_books: int,
+    dry_run: bool = False,
 ) -> None:
     try:
         import fitz  # type: ignore[import-not-found]
@@ -186,21 +248,47 @@ def run_round_pdf_batch(
                 doc.close()
             book_text = "\n\n".join(page_texts).strip()
 
-            pred_code, raw_output = predict_book_text(client, model_id, book_text)
-            rows.append(
-                {
-                    "book_id": book_id,
-                    "source_pdf": str(pdf_path),
-                    "pred_code": pred_code,
-                    "raw_model_output": raw_output,
-                    "text_char_count": len(book_text),
-                }
-            )
+            if dry_run:
+                rows.append(
+                    {
+                        "book_id": book_id,
+                        "source_path": str(pdf_path),
+                        "extraction_method": "pdf",
+                        "pred_code": "DRY",
+                        "raw_model_output": "dry-run",
+                        "text_char_count": len(book_text),
+                    }
+                )
+            else:
+                try:
+                    pred_code, raw_output = predict_book_text(client, model_id, book_text)
+                    rows.append(
+                        {
+                            "book_id": book_id,
+                            "source_path": str(pdf_path),
+                            "extraction_method": "pdf",
+                            "pred_code": pred_code,
+                            "raw_model_output": raw_output,
+                            "text_char_count": len(book_text),
+                        }
+                    )
+                except Exception as exc:
+                    rows.append(
+                        {
+                            "book_id": book_id,
+                            "source_path": str(pdf_path),
+                            "extraction_method": "error",
+                            "pred_code": "ERR",
+                            "raw_model_output": f"ERROR: {exc}",
+                            "text_char_count": 0,
+                        }
+                    )
         except Exception as exc:
             rows.append(
                 {
                     "book_id": book_id,
-                    "source_pdf": str(pdf_path),
+                    "source_path": str(pdf_path),
+                    "extraction_method": "error",
                     "pred_code": "ERR",
                     "raw_model_output": f"ERROR: {exc}",
                     "text_char_count": 0,
@@ -213,7 +301,8 @@ def run_round_pdf_batch(
             fh,
             fieldnames=[
                 "book_id",
-                "source_pdf",
+                "source_path",
+                "extraction_method",
                 "pred_code",
                 "raw_model_output",
                 "text_char_count",
@@ -268,6 +357,12 @@ def parse_args() -> argparse.Namespace:
         default=0,
         help="Optional limit for number of books to process. 0 means all books.",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=False,
+        help="Extract text only and log metadata; skip OpenAI predictions.",
+    )
     return parser.parse_args()
 
 
@@ -279,6 +374,7 @@ if __name__ == "__main__":
             pdf_root=args.pdf_root,
             output_csv=args.output_csv,
             max_books=args.max_books,
+            dry_run=args.dry_run,
         )
     else:
         run_round_image_batch(
@@ -286,4 +382,5 @@ if __name__ == "__main__":
             images_root=args.images_root,
             output_csv=args.output_csv,
             max_books=args.max_books,
+            dry_run=args.dry_run,
         )

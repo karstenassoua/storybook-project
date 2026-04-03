@@ -3,10 +3,67 @@ import json
 import os
 import time
 import re
+import argparse
 import configparser
 from anthropic import Anthropic
 from typing import Dict, Any, List
 from pathlib import Path
+
+
+def format_book_title(book_title: str) -> str:
+    """Normalize a book title into lowercase underscore format.
+
+    Example: "Who Said Coo?" -> "who_said_coo"
+    """
+    normalized = book_title.strip().lower()
+    normalized = re.sub(r"[^a-z0-9]+", "_", normalized)
+    normalized = re.sub(r"_+", "_", normalized).strip("_")
+    return normalized or "untitled_book"
+
+
+def convert_pdf_to_images(
+    pdf_path: str,
+    input_images_root: str = "data/input_images",
+    round_subfolder: str = "round_two_books",
+    book_title: str = "",
+    dpi: int = 200,
+) -> str:
+    """Convert a PDF to page images in data/input_images/round_two_books/<book_title>/.
+
+    Files are named with 3-digit page indices:
+    <book_title>-001.jpg, <book_title>-002.jpg, ...
+    """
+    try:
+        import fitz  # type: ignore[import-not-found]  # PyMuPDF
+    except ImportError as exc:
+        raise ImportError(
+            "PyMuPDF is not installed. Install it with: pip install pymupdf"
+        ) from exc
+
+    source_pdf = Path(pdf_path)
+    if not source_pdf.exists():
+        raise FileNotFoundError(f"PDF not found: {source_pdf}")
+
+    raw_title = book_title.strip() if book_title else source_pdf.stem
+    safe_title = format_book_title(raw_title)
+
+    output_dir = Path(input_images_root) / round_subfolder / safe_title
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    doc = fitz.open(source_pdf)
+    try:
+        scale = dpi / 72.0
+        matrix = fitz.Matrix(scale, scale)
+
+        for index, page in enumerate(doc, 1):
+            pix = page.get_pixmap(matrix=matrix, alpha=False)
+            image_name = f"{safe_title}-{index:03d}.jpg"
+            image_path = output_dir / image_name
+            pix.save(str(image_path))
+    finally:
+        doc.close()
+
+    return str(output_dir)
 
 
 def extract_text_from_image(image_path: str) -> Dict[str, Any]:
@@ -175,20 +232,54 @@ def extract_text_from_folder(folder_path: str) -> str:
 
 
 if __name__ == "__main__":
-    folder_path = "data/input_images/sample_images"
-    book_text = extract_text_from_folder(folder_path)
+    parser = argparse.ArgumentParser(description="OCR and PDF-to-images utilities")
+    parser.add_argument(
+        "--pdf",
+        type=str,
+        default="",
+        help="Path to a PDF to convert into page images.",
+    )
+    parser.add_argument(
+        "--book-title",
+        type=str,
+        default="",
+        help="Optional book title override used for folder and file names.",
+    )
+    parser.add_argument(
+        "--folder",
+        type=str,
+        default="data/input_images/sample_images",
+        help="Folder of images to OCR.",
+    )
+    parser.add_argument(
+        "--dpi",
+        type=int,
+        default=200,
+        help="DPI for PDF page rendering when using --pdf.",
+    )
+    args = parser.parse_args()
 
-    # Remove JSON-like snippets containing an extracted_text key so the final
-    # output is clean and human-readable.
-    cleaned = re.sub(r"\n?\s*\{[^}]*\"extracted_text\"[^}]*\}\n?", "\n", book_text, flags=re.DOTALL)
+    if args.pdf:
+        generated_folder = convert_pdf_to_images(
+            pdf_path=args.pdf,
+            book_title=args.book_title,
+            dpi=args.dpi,
+        )
+        print(f"Saved page images to: {generated_folder}")
+    else:
+        book_text = extract_text_from_folder(args.folder)
 
-    # Decode unicode escapes to make output readable (we escaped control chars earlier)
-    try:
-        decoded = cleaned.encode('utf-8').decode('unicode_escape')
-    except Exception:
-        decoded = cleaned
+        # Remove JSON-like snippets containing an extracted_text key so the final
+        # output is clean and human-readable.
+        cleaned = re.sub(r"\n?\s*\{[^}]*\"extracted_text\"[^}]*\}\n?", "\n", book_text, flags=re.DOTALL)
 
-    print("\n" + "="*50)
-    print("COMBINED BOOK TEXT:")
-    print("="*50)
-    print(decoded)
+        # Decode unicode escapes to make output readable (we escaped control chars earlier)
+        try:
+            decoded = cleaned.encode('utf-8').decode('unicode_escape')
+        except Exception:
+            decoded = cleaned
+
+        print("\n" + "="*50)
+        print("COMBINED BOOK TEXT:")
+        print("="*50)
+        print(decoded)

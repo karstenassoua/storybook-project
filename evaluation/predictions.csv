@@ -1,0 +1,21 @@
+book_name,true_label,pred_label,raw_model_output,text_length
+dragons_love_tacos,NUL,NUL,NUL - There is no primary lesson for this book that aligns with the theme categories.,135
+pinkalicious,EMO,JUS,"JUS - The story emphasizes the consequences of selfishness and the importance of moderation, as the protagonist learns that her excessive desire for cupcakes leads to undesirable outcomes.",2600
+otis_and_the_kittens,JUS,JUS,"JUS - The Book Text emphasizes fairness and moral consequences through Otis's brave actions to save the kittens, highlighting the importance of kindness and selflessness in the face of danger.",7918
+i_love_you_goodnight,NUL,FAM,"FAM - The Book Text centers on the expressions of love and affection between family members, emphasizing the special and unconditional nature of that love.",485
+knuffle_bunny,EMO,EMO,"EMO - The story centers on Trixie's emotional experience of losing her beloved toy and her struggle to express her feelings, highlighting the importance of recognizing and managing emotions.",1258
+polar_bear_polar_bear_what_do_you_hear,NUL,NAT,"NAT - The book familiarizes readers with animal sounds and life, conveying value in animal existence and their characteristics.",1144
+goodnight_goodnight_construction_site,NUL,NUL,NUL - There is no primary lesson for this book that aligns with the theme categories.,2982
+her_body_can,EMO,NAT,"NAT - The Natural World emphasizes the value of bodies and self-acceptance, celebrating the diversity and capabilities of all bodies as inherently good and worthy of love.",2940
+the_bad_seed,JUS,JUS,"JUS - The story emphasizes the importance of fairness and moral choices, illustrating how a character can change for the better and the value of kindness and good behavior.",1354
+green_eggs_and_ham,ADV,ADV,"ADV - The Book Text emphasizes the importance of trying new things and embracing new experiences, as the character ultimately discovers a newfound appreciation for green eggs and ham after initially rejecting them.",3565
+little_blue_truck,FRI,FRI,"FRI - The story emphasizes the importance of friendship and helping one another, as demonstrated by the characters coming together to assist the Little Blue Truck and the Dump.",1991
+flamingos_on_the_roof,NUL,NUL,NUL - There is no primary lesson for this book that aligns with the theme categories.,2613
+its_not_the_stork,NUL,NUL,NUL - There is no primary lesson for this book that aligns with the theme categories.,15815
+time_for_a_hug,FAM,FAM,"FAM - The Book Text centers on the importance of love and affection within family relationships, emphasizing the value of hugs and the bond shared between loved ones.",1328
+the_snowy_day,NUL,NUL,NUL - There is no primary lesson for this book that aligns with the theme categories.,138
+llama_llama_and_the_bully_goat,JUS,JUS,"JUS - The story emphasizes fairness and moral consequences, highlighting the importance of treating others kindly and standing against bullying.",1809
+steam_train_dream_train,NUL,NUL,NUL - There is no primary lesson for this book that aligns with the theme categories.,2455
+five_little_monkeys_jumping_on_the_bed,NUL,NUL,NUL - There is no primary lesson for this book that aligns with the theme categories.,1067
+princess_cora_and_the_crocodile,ADV,ADV,"ADV - The Book Text centers on Princess Cora's desire to explore and embrace new experiences outside the constraints of her royal upbringing, highlighting the importance of adventure and personal freedom.",27562
+the_little_mouse_the_red_ripe_strawberry_and_the_big_hungry_bear,JUS,ADV,"ADV - The Book Text features characters moving through different locations or settings as part of their journey, highlighting exploration and the risks involved in trying new things.",407

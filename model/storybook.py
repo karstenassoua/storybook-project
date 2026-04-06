@@ -51,9 +51,13 @@ INSTRUCTIONS:
 Read the complete book text provided
 Identify the primary lesson or takeaway a child reader would receive
 Select the single code that best matches this primary lesson
+Refer to the code definitions above to make your labeling
 Output only the three-letter code
-OUTPUT FORMAT: Return the three-letter code then a 1 sentence rationale as to why your prediction is the primary theme for that book. Example: "NUL - There is no primary lesson for this book that aligns with the theme categories."""
+OUTPUT FORMAT: Return the three-letter code then a 1 sentence rationale as to why your prediction is the primary theme for that book. In that one sentence, refer to the code definitions above to justify your labeling. Example: "NUL - There is no primary lesson for this book that aligns with the theme categories."""
 
+## TODO: NEW:
+# "Refer to the code definitions above to make your labeling"
+# "In that one sentence, refer to the code definitions above to justify your labeling. ""
 
 def _parse_code(raw_output: str) -> str:
     text = (raw_output or "").strip().upper()

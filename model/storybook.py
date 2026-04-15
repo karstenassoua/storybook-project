@@ -35,52 +35,67 @@ def _load_openai_key_from_dotenv() -> None:
                 return
 
 
-PROMPT = """You are a children's book content analyzer. Your task is to read the book text and assign the output one of nine lesson codes based on it's primary moral, educational, or thematic takeaway.
-Read the entire Book Text carefully and determine which single lesson code best represents the main message or value that a child reader would take away from the story. Even if multiple themes are present, choose the one that is most central to the narrative.
+SYSTEM_PROMPT = """You are a children's book content analyzer. Your task is to read the book text and assign one of nine lesson codes based on it's primary moral, educational, or thematic takeaway.
+Read the entire book text carefully and determine which single lesson code best represents the main message or value that a child reader would take away from the story. Even if multiple themes are present, choose the one that is most central to the narrative.
 THE NINE LESSON CODES:
-FAM - Love of Family: The Book Text centers relationships between nuclear family members, depicting this love as special and unconditional. The reader learns to value their parents or other family members. Example: A story where parents take care of their child.
-FRI - Friendship The Book Text features strong friendships between characters. Friendships may be tested but friends emerge stronger. The focus is on loyalty, reconciliation, or mutual care between friends. The reader learns the importance of having and maintaining friendships with care and reciprocity. Example: Two friends argue but work together to reconcile. Note: If the book primarily emphasizes loyalty, reconciliation, or mutual care between friends, especially if the moral centers on maintaining or valuing friendship, use FRI not JUS.
-REL - Religion: The Book Text features overtly religious sentiments, actions, or quotations, often linking religious belief with prosociality. The reader learns the value of religious faith. Example: A protagonist prays for their friends and family.
-EMO - Emotions: The Book Text guides readers toward recognizing, expressing, and managing emotions and their effects. Characters experience emotional changes throughout the story. May include characters coping with self-doubt who come to accept themselves. The reader learns that emotions are temporary and manageable. Example: A protagonist is angry about not getting their way but later accepts it and becomes content with what they have.
-ADV - Adventure/Trying New Things: The Book Text features characters moving through different locations or settings as part of their journey. The narrative highlights exploration, venturing outside one's comfort zone, and embracing new experiences. Characters are often rewarded for bravery. The reader learns that exploring new things can lead to positive experiences. Example: A protagonist moves to a new school and learns to embrace the environment change. Note: The presence of an unfamiliar situation is necessary. A significant challenge is not required (that would be PER).
-PER - Perseverance: The Book Text features characters facing situational challenges such as obstacles, setbacks, or difficult conditions. The reader learns the value of effort and hard work, especially through difficulty. Example: A protagonist improves their grades in school through hard work and studying. Note: The character must apply effort or face difficulty. An unfamiliar situation is not required (that would be ADV).
-JUS - Justice and Fairness: The Book Text emphasizes fairness or moral consequences, whether grand scale (heroes vs. villains, good triumphing over evil) or everyday contexts (sharing, kindness, fair treatment). Right actions are rewarded and wrong actions bring penalties. Example: A protagonist shares with a stranger who later is able to give them something in return.
-NAT - The Natural World: The Book Text familiarizes readers with and conveys value in animal or plant life. The reader learns that non-human animals and plant life are bearers of value. Example: A protagonist takes great care to preserve a garden. Note: Many books feature anthropomorphized animal protagonists. The mere presence of animal characters is not sufficient. The book must convey value in animals or plants beyond their exhibition of human traits.
-NUL - Books Without a Lesson: The Book Text is designed primarily for fun, entertainment, or comfort, such as silly stories or bedtime routines, without an explicit moral, educational takeaway, or skill-building element. Readers read these books for reading's sake. Example: A protagonist plays hide and seek with the reader.
+FAM - Love of Family: The book text centers relationships between nuclear family members, depicting this love as special and unconditional. The reader learns to value their parents or other family members. Example: A story where parents take care of their child. Note: If a book depicts family love and warmth — even if family members also model kind or fair behavior — use FAM not JUS. The test is whether the story's emotional core is the family bond itself.
+FRI - Friendship: The book text features strong friendships between characters. Friendships may be tested but friends emerge stronger. The focus is on loyalty, reconciliation, or mutual care between friends. The reader learns the importance of having and maintaining friendships with care and reciprocity. Example: Two friends argue but work together to reconcile. Note: If the book primarily emphasizes loyalty, reconciliation, or mutual care between friends, especially if the moral centers on maintaining or valuing friendship, use FRI not JUS. Note: Warm or playful interactions between characters do not qualify as FRI if friendship itself is not the central lesson — a fun story that happens to include friends should be NUL.
+REL - Religion: The book text features overtly religious sentiments, actions, or quotations, often linking religious belief with prosociality. The reader learns the value of religious faith. Example: A protagonist prays for their friends and family.
+EMO - Emotions: The book text guides readers toward recognizing, expressing, and managing emotions and their effects. Characters experience emotional changes throughout the story. May include characters coping with self-doubt who come to accept themselves. The reader learns that emotions are temporary and manageable. Example: A protagonist is angry about not getting their way but later accepts it and becomes content with what they have. Note: If the primary arc of the story is a character recognizing and regulating their own emotional state — even if their behavior has consequences along the way — use EMO not JUS. The key distinction is whether the reader's main takeaway concerns emotions and internal change, or fairness and moral consequences.
+ADV - Adventure/Trying New Things: The book text features characters moving through different locations or settings as part of their journey. The narrative highlights exploration, venturing outside one's comfort zone, and embracing new experiences. Characters are often rewarded for bravery. The reader learns that exploring new things can lead to positive experiences. Example: A protagonist moves to a new school and learns to embrace the environment change. Note: The presence of an unfamiliar situation is necessary. A significant challenge is not required (that would be PER).
+PER - Perseverance: The book text features characters facing situational challenges such as obstacles, setbacks, or difficult conditions. The reader learns the value of effort and hard work, especially through difficulty. Example: A protagonist improves their grades in school through hard work and studying. Note: The character must apply effort or face difficulty. An unfamiliar situation is not required (that would be ADV).
+JUS - Justice and Fairness: The book text emphasizes fairness or moral consequences, whether grand scale (heroes vs. villains, good triumphing over evil) or everyday contexts (sharing, kindness, fair treatment). Right actions are rewarded and wrong actions bring penalties. Example: A protagonist shares with a stranger who later is able to give them something in return. Note: If the story centers on family love (use FAM) or a character's emotional journey (use EMO), do not use JUS merely because good or bad behavior appears in the story. JUS requires that the moral consequence or fairness principle is itself the central lesson.
+NAT - The Natural World: The book text familiarizes readers with and conveys value in animal or plant life. The reader learns that non-human animals and plant life are bearers of value. Example: A protagonist takes great care to preserve a garden. Note: Many books feature anthropomorphized animal protagonists. The mere presence of animal characters is not sufficient. The book must convey value in animals or plants beyond their exhibition of human traits. Note: If an animal character simply has fun adventures or human-like emotions without the narrative conveying appreciation for animal or plant life itself, use the lesson code that best fits the story's actual theme — do not default to NUL simply because the NAT signal is subtle.
+NUL - Books Without a Lesson: The book text is designed primarily for fun, entertainment, or comfort, such as silly stories or bedtime routines, without an explicit moral, educational takeaway, or skill-building element. Readers read these books for reading's sake. Example: A protagonist plays hide and seek with the reader. Note: Only use NUL when no lesson code fits. If a lesson is present — even a subtle one — assign the appropriate code.
 INSTRUCTIONS:
 Read the complete book text provided
 Identify the primary lesson or takeaway a child reader would receive
 Select the single code that best matches this primary lesson
 Refer to the code definitions above to make your labeling
 Output only the three-letter code
-OUTPUT FORMAT: Return the three-letter code then a 1 sentence rationale as to why your prediction is the primary theme for that book. In that one sentence, refer to the code definitions above to justify your labeling. Example: "NUL - There is no primary lesson for this book that aligns with the theme categories."""
+OUTPUT FORMAT: Return only the three-letter code with no additional text, explanation, or formatting."""
 
-## TODO: NEW:
-# "Refer to the code definitions above to make your labeling"
-# "In that one sentence, refer to the code definitions above to justify your labeling. ""
+# Prefix that mirrors the user message format used in the fine-tuning training data.
+USER_PREFIX = "Please analyze this children's book text and assign the appropriate lesson code:"
+
+VALID_CODES = {"FAM", "FRI", "REL", "EMO", "ADV", "PER", "JUS", "NAT", "NUL"}
+
 
 def _parse_code(raw_output: str) -> str:
+    """Extract a valid 9-code label from model output.
+
+    Iterates over all 3-letter uppercase tokens and returns the first one
+    that matches a known label. Falls back to 'UNK' if none match.
+    """
     text = (raw_output or "").strip().upper()
-    match = re.search(r"\b([A-Z]{3})\b", text)
-    return match.group(1) if match else "UNK"
+    for token in re.findall(r"\b[A-Z]{3}\b", text):
+        if token in VALID_CODES:
+            return token
+    return "UNK"
 
 
 def _get_client() -> OpenAI:
     _load_openai_key_from_dotenv()
     if not os.getenv("OPENAI_API_KEY"):
         raise RuntimeError(
-            "Missing OPENAI_API_KEY. Set it in your shell or create a .env file at project root "
-            "(/Users/kass/Desktop/MML/Storybook Project/.env) with: OPENAI_API_KEY=your-key"
+            "Missing OPENAI_API_KEY. Set it in your shell or add a .env file at the project root "
+            "containing: OPENAI_API_KEY=your-key"
         )
     return OpenAI()
 
 
 def predict_book_text(client: OpenAI, model_id: str, book_text: str) -> Tuple[str, str]:
+    """Classify a book text using the fine-tuned model.
+
+    Message format mirrors the fine-tuning training data exactly:
+      system  — codebook and classification instructions
+      user    — USER_PREFIX + book text
+    """
     response = client.chat.completions.create(
         model=model_id,
         messages=[
-            {"role": "user", "content": PROMPT},
-            {"role": "user", "content": book_text},
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": f"{USER_PREFIX}\n\n{book_text}"},
         ],
         temperature=0.0,
     )
@@ -330,7 +345,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model-id",
         type=str,
-        default="ft:gpt-4o-mini-2024-07-18:personal:storybook1:D3j5j130",
+        default="ft:gpt-4o-mini-2024-07-18:personal:storybook2:DUuqYrWI",
         help="Finetuned OpenAI model ID.",
     )
     parser.add_argument(

@@ -1,3 +1,12 @@
+"""
+DEPRECATED — use qualitative_coding/evaluate_split.py for all evaluation.
+
+This module provides a legacy 20-book frozen test split against VCODES1.csv
+and storybooks_cleaned.csv. It is retained for reference only. The canonical
+benchmark is evaluate_split.py, which runs a reproducible 60/40 stratified
+split on the full 96-example JSONL dataset with bootstrap confidence intervals
+and multi-model comparison.
+"""
 import csv
 import json
 import random
